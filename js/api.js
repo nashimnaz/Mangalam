@@ -200,13 +200,56 @@ async function loadDestinationDropdowns() {
 }
 
 // ─── Dynamic Google & Social SEO Meta Injector ───────────────────────────────
-async function loadDynamicSeo() {
+async function loadDynamicSeo(overrideSlug) {
   try {
     const pathname = window.location.pathname || '/';
     const cleanPath = pathname === '/' || pathname.endsWith('/index.html') ? '/' : pathname;
-    const seo = await apiGet(`/api/seo/match?route=${encodeURIComponent(cleanPath)}`);
-    if (!seo || !seo.id) return;
+    const search = window.location.search || '';
+    const params = new URLSearchParams(search);
+    const slug = (overrideSlug || params.get('slug') || '').trim().toLowerCase();
 
+    let seo = null;
+
+    // 1. If destination page with slug, match destination route first
+    if (slug) {
+      const destRoute = `${cleanPath}?slug=${encodeURIComponent(slug)}`;
+      try {
+        seo = await apiGet(`/api/seo/match?route=${encodeURIComponent(destRoute)}`);
+      } catch (_) {}
+    } else if (search) {
+      const fullRoute = cleanPath + search;
+      try {
+        seo = await apiGet(`/api/seo/match?route=${encodeURIComponent(fullRoute)}`);
+      } catch (_) {}
+    }
+
+    // 2. If no match yet, fall back to clean base path (e.g. /about.html, /contact.html)
+    if (!seo || !seo.id) {
+      try {
+        seo = await apiGet(`/api/seo/match?route=${encodeURIComponent(cleanPath)}`);
+      } catch (_) {}
+    }
+
+    // 3. Fallback for destination pages without a custom SEO entry in Admin Panel
+    if (!seo || !seo.id) {
+      if (slug) {
+        const destTitle = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/[-_]/g, ' ');
+        const fallbackTitle = `${destTitle} Holiday Packages | Mangalam Travel & Tours`;
+        if (!document.title || document.title.includes('Explore All Travel Packages') || document.title.includes('Malaysia')) {
+          document.title = fallbackTitle;
+          setMeta('title', 'name', fallbackTitle);
+          setMeta('og:title', 'property', fallbackTitle);
+          setMeta('twitter:title', 'name', fallbackTitle);
+        }
+        const currentUrl = window.location.href.split('#')[0];
+        setLink('canonical', currentUrl);
+        setMeta('og:url', 'property', currentUrl);
+        setMeta('twitter:url', 'name', currentUrl);
+      }
+      return;
+    }
+
+    // 4. Inject exact SEO configuration from Admin Panel
     if (seo.meta_title) {
       document.title = seo.meta_title;
       setMeta('title', 'name', seo.meta_title);
@@ -228,6 +271,11 @@ async function loadDynamicSeo() {
       setLink('canonical', seo.canonical_url);
       setMeta('og:url', 'property', seo.canonical_url);
       setMeta('twitter:url', 'name', seo.canonical_url);
+    } else if (slug) {
+      const currentUrl = window.location.href.split('#')[0];
+      setLink('canonical', currentUrl);
+      setMeta('og:url', 'property', currentUrl);
+      setMeta('twitter:url', 'name', currentUrl);
     }
     if (seo.og_image) {
       const resolved = resolveImg(seo.og_image);
@@ -237,6 +285,8 @@ async function loadDynamicSeo() {
     }
   } catch (_) {}
 }
+
+window.loadDynamicSeo = loadDynamicSeo;
 
 // Call immediately so request fires in parallel
 loadDynamicSeo();

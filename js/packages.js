@@ -44,6 +44,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (heroDesc) heroDesc.textContent = activeDest.discription || activeDest.description || '';
     if (destSpanPkg) destSpanPkg.textContent = destName;
     if (destSpanAttr) destSpanAttr.textContent = destName;
+
+    // Refresh Dynamic SEO with the resolved destination slug
+    if (activeDestSlug && typeof window.loadDynamicSeo === 'function') {
+      window.loadDynamicSeo(activeDestSlug);
+    }
   } else {
     if (heroImg) heroImg.src = './assets/images/bg-img.webp';
     if (heroTitle) heroTitle.textContent = 'Holiday Packages & Experiences';

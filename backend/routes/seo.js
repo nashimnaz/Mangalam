@@ -45,9 +45,17 @@ router.get('/match', async (req, res) => {
       const qParams = new URLSearchParams(queryPart);
       const slug = qParams.get('slug');
       if (slug) {
+        const cleanSlug = slug.toLowerCase().trim();
         matched = all.find(s => {
-          const sRoute = s.page_route.toLowerCase();
-          return sRoute === `${pathPart}?slug=${slug.toLowerCase()}` || sRoute.includes(`slug=${slug.toLowerCase()}`);
+          const sRoute = s.page_route.toLowerCase().trim();
+          if (!sRoute.includes('?')) return false;
+          const [sPart, sQuery] = sRoute.split('?');
+          const sParams = new URLSearchParams(sQuery);
+          const sSlug = sParams.get('slug');
+          if (sSlug && sSlug.toLowerCase().trim() === cleanSlug) {
+            return true;
+          }
+          return sRoute === `${pathPart}?slug=${cleanSlug}`;
         });
       }
     }
@@ -57,10 +65,13 @@ router.get('/match', async (req, res) => {
       matched = all.find(s => s.page_route.toLowerCase() === '/' || s.page_route.toLowerCase() === '/index.html');
     }
 
-    // 4. Base html extension match
+    // 4. Base html extension match (only match static pages WITHOUT query parameters)
     if (!matched) {
       const base = normalizedRoute.split('?')[0].replace(/\.html$/i, '');
-      matched = all.find(s => s.page_route.split('?')[0].replace(/\.html$/i, '').toLowerCase() === base);
+      matched = all.find(s => {
+        if (s.page_route.includes('?')) return false;
+        return s.page_route.split('?')[0].replace(/\.html$/i, '').toLowerCase() === base;
+      });
     }
 
     res.json(matched || {});

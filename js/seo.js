@@ -36,12 +36,12 @@
       const params = new URLSearchParams(search);
       const slug = params.get('slug');
       
-      const apiOrigin = window.MT?.API_BASE?.replace(/\/api$/, '') || (window.location.port === '4000' ? '' : 'http://localhost:4000');
+      const apiOrigin = window.MT?.API_BASE?.replace(/\/api$/, '') || '';
       
       let seo = null;
       // 1. If page has slug parameter (e.g. destination packages.html?slug=dubai), try matching destination route first
       if (slug) {
-        const destRoute = `${cleanPath}?slug=${encodeURIComponent(slug)}`;
+        const destRoute = `${cleanPath}?slug=${encodeURIComponent(slug.trim().toLowerCase())}`;
         try {
           const res = await fetch(`${apiOrigin}/api/seo/match?route=${encodeURIComponent(destRoute)}`);
           if (res.ok) {
@@ -62,7 +62,21 @@
         } catch (_) {}
       }
 
-      if (!seo || !seo.id) return;
+      if (!seo || !seo.id) {
+        if (slug) {
+          const destTitle = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/[-_]/g, ' ');
+          const fallbackTitle = `${destTitle} Holiday Packages | Mangalam Travel & Tours`;
+          if (!document.title || document.title.includes('Explore All Travel Packages') || document.title.includes('Malaysia')) {
+            document.title = fallbackTitle;
+            setMetaTag('og:title', 'property', fallbackTitle);
+            setMetaTag('twitter:title', 'name', fallbackTitle);
+          }
+          const currentUrl = window.location.href.split('#')[0];
+          setLinkTag('canonical', currentUrl);
+          setMetaTag('og:url', 'property', currentUrl);
+        }
+        return;
+      }
 
       // 1. Page Title
       if (seo.meta_title) {
