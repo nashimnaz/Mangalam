@@ -301,7 +301,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="flex-1 w-full flex items-center justify-between gap-3">
             <div>
               <h4 class="font-bold text-slate-900 text-sm sm:text-base leading-snug">${placeName}</h4>
-              <span class="text-xs text-slate-500 mt-1 block"><i class="fas fa-map-pin text-red-500 mr-1"></i> Popular Attraction</span>
             </div>
             <input type="checkbox" value="${placeName}" class="place-checkbox w-6 h-6 text-red-500 rounded-lg focus:ring-red-500 border-slate-300 cursor-pointer flex-shrink-0" ${isChecked ? 'checked' : ''}>
           </div>
