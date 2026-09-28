@@ -1890,7 +1890,7 @@ async function openSeoForm(s = null) {
             </optgroup>
           </select>
         </div>
-        <input id="seo-route" list="seo-routes-list" value="${s?.page_route || '/'}" placeholder="e.g. / or /packages.html?slug=dubai" oninput="handleSeoRouteChange(this.value)">
+        <input id="seo-route" list="seo-routes-list" value="${s?.page_route || ''}" placeholder="Select or type URL path (e.g. /packages.html?slug=dubai)" oninput="handleSeoRouteChange(this.value)">
         <datalist id="seo-routes-list">
           ${routesDatalist}
         </datalist>
@@ -1899,8 +1899,8 @@ async function openSeoForm(s = null) {
         </span>
       </div>
       <div class="form-group">
-        <label>Page Name *</label>
-        <input id="seo-page-name" value="${s?.page_name || ''}" placeholder="e.g. Destination: Dubai or Holiday Packages">
+        <label>Page Name</label>
+        <input id="seo-page-name" value="${s?.page_name || ''}" placeholder="e.g. Dubai Packages or Holiday Packages">
       </div>
     </div>
 
@@ -1909,20 +1909,20 @@ async function openSeoForm(s = null) {
         <label style="margin:0">Google Meta Title *</label>
         <span id="char-count-title" style="font-size:11px;color:#6b7280">${(s?.meta_title||'').length}/60 chars</span>
       </div>
-      <input id="seo-title" value="${s?.meta_title || ''}" placeholder="e.g. Dubai Tour Packages | Best Travel Deals — Mangalam" oninput="updateSeoPreview()">
+      <input id="seo-title" value="${s?.meta_title || ''}" placeholder="Enter your custom Meta Title for Google search" oninput="updateSeoPreview()">
     </div>
 
     <div class="form-group">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <label style="margin:0">Google Meta Description *</label>
+        <label style="margin:0">Google Meta Description</label>
         <span id="char-count-desc" style="font-size:11px;color:#6b7280">${(s?.meta_description||'').length}/160 chars</span>
       </div>
-      <textarea id="seo-desc" rows="3" placeholder="Brief summary for search engines (140-160 characters)..." oninput="updateSeoPreview()">${s?.meta_description || ''}</textarea>
+      <textarea id="seo-desc" rows="3" placeholder="Enter your custom meta description (140-160 characters)..." oninput="updateSeoPreview()">${s?.meta_description || ''}</textarea>
     </div>
 
     <div class="form-group">
-      <label>SEO Focus Keywords (Comma separated) *</label>
-      <textarea id="seo-keywords" rows="2" placeholder="e.g. dubai tour packages, dubai holiday, dubai travel, best dubai deals">${s?.meta_keywords || ''}</textarea>
+      <label>SEO Focus Keywords (Comma separated)</label>
+      <textarea id="seo-keywords" rows="2" placeholder="Enter custom keywords separated by commas...">${s?.meta_keywords || ''}</textarea>
       <span style="font-size:11px;color:#9ca3af;margin-top:2px;display:block">Separate keywords with commas. Example: <code>dubai tours, cheap flights, visa processing</code></span>
     </div>
 
@@ -1956,11 +1956,11 @@ async function openSeoForm(s = null) {
 
     <div class="modal-actions">
       <div>
-        ${seoId ? `<button type="button" class="btn-danger" onclick="deleteSeo(${seoId})"><i class="fas fa-trash-alt"></i> Delete SEO</button>` : ''}
+        ${seoId ? `<button type="button" class="btn-danger" onclick="deleteSeo('${seoId}')"><i class="fas fa-trash-alt"></i> Delete SEO</button>` : ''}
       </div>
       <div class="modal-actions-right">
         <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button type="button" class="btn-primary" onclick="saveSeo(${seoId || 'null'})"><i class="fas fa-save"></i> ${s ? 'Update SEO' : 'Save SEO'}</button>
+        <button type="button" class="btn-primary" onclick="saveSeo(${seoId ? `'${seoId}'` : 'null'})"><i class="fas fa-save"></i> ${s ? 'Update SEO' : 'Save SEO'}</button>
       </div>
     </div>
   `);
@@ -1971,64 +1971,12 @@ window.selectSeoQuickRoute = function(val) {
   const routeInput = document.getElementById('seo-route');
   if (routeInput) {
     routeInput.value = val;
-    handleSeoRouteChange(val);
+    updateSeoPreview();
   }
 };
 
 window.handleSeoRouteChange = function(routeVal) {
   updateSeoPreview();
-  const route = (routeVal || '').trim();
-  const pageNameInput = document.getElementById('seo-page-name');
-  const titleInput = document.getElementById('seo-title');
-  const descInput = document.getElementById('seo-desc');
-  const keywordsInput = document.getElementById('seo-keywords');
-  const canonicalInput = document.getElementById('seo-canonical');
-  const ogInput = document.getElementById('img-url-seo-og');
-  const previewOg = document.getElementById('preview-seo-og');
-
-  if (route.includes('/packages.html?slug=')) {
-    const slug = route.split('slug=')[1]?.split('&')[0];
-    const dest = (destinations || []).find(d => {
-      const dSlug = d.slug_url || (d.destination_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      return dSlug.toLowerCase() === (slug || '').toLowerCase();
-    });
-
-    if (dest) {
-      const destName = dest.destination_name || 'Destination';
-      if (pageNameInput && (!pageNameInput.value || pageNameInput.value === 'Custom Page' || pageNameInput.value.startsWith('Destination:'))) {
-        pageNameInput.value = `Destination: ${destName}`;
-      }
-      if (titleInput && (!titleInput.value || titleInput.value.includes('Holiday Packages — Best'))) {
-        titleInput.value = `${destName} Tour Packages | Best Travel Deals — Mangalam Travel & Tours`;
-      }
-      if (descInput && !descInput.value) {
-        const dDesc = dest.description ? dest.description.replace(/<[^>]*>?/gm, '').slice(0, 120) : '';
-        descInput.value = dDesc 
-          ? `Explore ${destName} holiday packages. ${dDesc} Book customized tours with Mangalam Travel.` 
-          : `Explore top-rated ${destName} tour packages, holiday itineraries, attractions, and flight bookings with Mangalam Travel & Tours.`;
-      }
-      if (keywordsInput && !keywordsInput.value) {
-        keywordsInput.value = `${destName.toLowerCase()} tour packages, ${destName.toLowerCase()} holidays, ${destName.toLowerCase()} trip, visit ${destName.toLowerCase()}, best ${destName.toLowerCase()} packages`;
-      }
-      if (canonicalInput && !canonicalInput.value) {
-        canonicalInput.value = `https://mangalamtravel.com/packages.html?slug=${slug}`;
-      }
-      if (ogInput && !ogInput.value && (dest.card_image || dest.inner_image)) {
-        const img = dest.card_image || dest.inner_image;
-        ogInput.value = img;
-        if (previewOg) {
-          previewOg.style.display = 'inline-block';
-          previewOg.innerHTML = `<img src="${img}" alt="OG Preview"><button type="button" class="btn-remove-img" onclick="removeImageUpload('seo-og')" title="Delete this image"><i class="fas fa-trash-alt"></i> Delete Image</button>`;
-        }
-      }
-      updateSeoPreview();
-    }
-  } else {
-    const page = COMMON_PAGE_ROUTES.find(p => p.route.toLowerCase() === route.toLowerCase());
-    if (page && pageNameInput && (!pageNameInput.value || pageNameInput.value === 'Custom Page')) {
-      pageNameInput.value = page.name;
-    }
-  }
 };
 
 window.updateSeoPreview = function() {
@@ -2072,15 +2020,15 @@ window.saveSeo = async function(id) {
   const robots = document.getElementById('seo-robots').value;
   const status = document.getElementById('seo-status').value;
 
-  if (!route || !title) {
-    showToast('Page Route and Meta Title are required', 'error');
+  if (!route) {
+    showToast('Page Route / URL Path is required', 'error');
     return;
   }
 
   const body = {
     page_route: route,
-    page_name: pageName || 'Custom Page',
-    meta_title: title,
+    page_name: pageName || route,
+    meta_title: title || pageName || route,
     meta_description: desc,
     meta_keywords: keywords,
     canonical_url: canonical,
@@ -2089,19 +2037,23 @@ window.saveSeo = async function(id) {
     status
   };
 
-  const res = id ? await api('PUT', `/seo/${id}`, body) : await api('POST', '/seo', body);
+  const res = (id && id !== 'null') ? await api('PUT', `/seo/${id}`, body) : await api('POST', '/seo', body);
   if (res?.error) { showToast(res.error, 'error'); return; }
-  showToast(id ? 'SEO updated!' : 'SEO added!', 'success');
-  closeModal(); loadSeo(); loadDashboard();
+  showToast((id && id !== 'null') ? 'SEO updated!' : 'SEO added!', 'success');
+  closeModal();
+  await loadSeo();
+  loadDashboard();
 };
 
 window.deleteSeo = async function(id) {
+  if (!id || id === 'null') return;
   if (!confirm('Are you sure you want to delete this SEO configuration?')) return;
   const res = await api('DELETE', `/seo/${id}`);
   if (res?.error) { showToast(res.error, 'error'); return; }
   showToast('SEO configuration deleted', 'success');
   closeModal();
-  loadSeo(); loadDashboard();
+  await loadSeo();
+  loadDashboard();
 };
 
 document.getElementById('btn-add-seo')?.addEventListener('click', () => openSeoForm());

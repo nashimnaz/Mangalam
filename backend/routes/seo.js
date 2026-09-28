@@ -17,43 +17,9 @@ const map = s => ({
   created_at:       s.created_at || new Date().toISOString()
 });
 
-// Auto-sync destinations to SEO table if any destination doesn't have an SEO entry yet
-async function syncDestinationsToSeo() {
-  try {
-    const dests = await store.getAll('destinations');
-    if (!dests || !dests.length) return;
-    const existingSeo = await store.getAll('seo');
-    const existingRoutes = new Set(existingSeo.map(s => (s.page_route || '').toLowerCase().trim()));
-
-    for (const d of dests) {
-      const slug = (d.slug_url || '').trim();
-      if (!slug) continue;
-      const expectedRoute = `/packages.html?slug=${slug}`.toLowerCase();
-      if (!existingRoutes.has(expectedRoute)) {
-        const destName = d.destination_name || 'Destination';
-        await store.insert('seo', {
-          page_route: `/packages.html?slug=${slug}`,
-          page_name: `Destination: ${destName}`,
-          meta_title: `${destName} Tour Packages | Best Travel Deals — Mangalam Travel & Tours`,
-          meta_description: `Explore top-rated ${destName} tour packages, holiday itineraries, attractions, and flight bookings with Mangalam Travel & Tours.`,
-          meta_keywords: `${destName} tour packages, ${destName} holidays, ${destName} trip, visit ${destName}, ${destName} tourism`,
-          canonical_url: `https://mangalamtravel.com/packages.html?slug=${slug}`,
-          og_image: d.card_image || d.inner_image || '',
-          robots: 'index, follow',
-          status: 'Active'
-        });
-        existingRoutes.add(expectedRoute);
-      }
-    }
-  } catch (err) {
-    console.warn('[SEO] syncDestinationsToSeo warning:', err.message);
-  }
-}
-
 // GET all SEO configs (Admin)
 router.get('/', async (req, res) => {
   try {
-    await syncDestinationsToSeo();
     const all = await store.getAll('seo');
     res.json(all.map(map));
   } catch (e) {
@@ -260,7 +226,15 @@ router.put('/:id', verifyToken, async (req, res) => {
     const { page_route, page_name, meta_title, meta_description, meta_keywords, canonical_url, og_image, robots, status } = req.body;
 
     const updates = {};
-    if (page_route !== undefined) updates.page_route = page_route.startsWith('/') ? page_route.trim() : `/${page_route.trim()}`;
+    if (page_route !== undefined) {
+      const cleanRoute = page_route.startsWith('/') ? page_route.trim() : `/${page_route.trim()}`;
+      // Check if page_route is already used by another record (not this one)
+      const existing = await store.getOne('seo', 'WHERE LOWER(page_route) = ? AND id != ?', [cleanRoute.toLowerCase(), Number(req.params.id)]);
+      if (existing) {
+        return res.status(400).json({ error: `An SEO configuration for route "${cleanRoute}" already exists.` });
+      }
+      updates.page_route = cleanRoute;
+    }
     if (page_name !== undefined) updates.page_name = page_name.trim();
     if (meta_title !== undefined) updates.meta_title = meta_title.trim();
     if (meta_description !== undefined) updates.meta_description = meta_description.trim();
