@@ -17,9 +17,43 @@ const map = s => ({
   created_at:       s.created_at || new Date().toISOString()
 });
 
+// Auto-sync destinations to SEO table if any destination doesn't have an SEO entry yet
+async function syncDestinationsToSeo() {
+  try {
+    const dests = await store.getAll('destinations');
+    if (!dests || !dests.length) return;
+    const existingSeo = await store.getAll('seo');
+    const existingRoutes = new Set(existingSeo.map(s => (s.page_route || '').toLowerCase().trim()));
+
+    for (const d of dests) {
+      const slug = (d.slug_url || '').trim();
+      if (!slug) continue;
+      const expectedRoute = `/packages.html?slug=${slug}`.toLowerCase();
+      if (!existingRoutes.has(expectedRoute)) {
+        const destName = d.destination_name || 'Destination';
+        await store.insert('seo', {
+          page_route: `/packages.html?slug=${slug}`,
+          page_name: `Destination: ${destName}`,
+          meta_title: `${destName} Tour Packages | Best Travel Deals — Mangalam Travel & Tours`,
+          meta_description: `Explore top-rated ${destName} tour packages, holiday itineraries, attractions, and flight bookings with Mangalam Travel & Tours.`,
+          meta_keywords: `${destName} tour packages, ${destName} holidays, ${destName} trip, visit ${destName}, ${destName} tourism`,
+          canonical_url: `https://mangalamtravel.com/packages.html?slug=${slug}`,
+          og_image: d.card_image || d.inner_image || '',
+          robots: 'index, follow',
+          status: 'Active'
+        });
+        existingRoutes.add(expectedRoute);
+      }
+    }
+  } catch (err) {
+    console.warn('[SEO] syncDestinationsToSeo warning:', err.message);
+  }
+}
+
 // GET all SEO configs (Admin)
 router.get('/', async (req, res) => {
   try {
+    await syncDestinationsToSeo();
     const all = await store.getAll('seo');
     res.json(all.map(map));
   } catch (e) {
@@ -30,19 +64,37 @@ router.get('/', async (req, res) => {
 // GET SEO for specific page path (Frontend dynamic meta injection)
 router.get('/match', async (req, res) => {
   try {
-    const route = (req.query.route || req.query.path || '/').toLowerCase().trim();
+    const rawRoute = (req.query.route || req.query.path || '/').trim();
+    const route = rawRoute.toLowerCase();
     const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
 
     const all = (await store.getAll('seo')).map(map);
     
-    // Find exact match or normalized match
+    // 1. Exact match (case-insensitive)
     let matched = all.find(s => s.page_route.toLowerCase() === normalizedRoute);
+
+    // 2. Query param matching (e.g. /packages.html?slug=dubai or /packages.html?slug=dubai&type=package)
+    if (!matched && normalizedRoute.includes('?')) {
+      const [pathPart, queryPart] = normalizedRoute.split('?');
+      const qParams = new URLSearchParams(queryPart);
+      const slug = qParams.get('slug');
+      if (slug) {
+        matched = all.find(s => {
+          const sRoute = s.page_route.toLowerCase();
+          return sRoute === `${pathPart}?slug=${slug.toLowerCase()}` || sRoute.includes(`slug=${slug.toLowerCase()}`);
+        });
+      }
+    }
+
+    // 3. Match root
     if (!matched && (normalizedRoute === '' || normalizedRoute === '/' || normalizedRoute === '/index.html' || normalizedRoute === '/index.php')) {
       matched = all.find(s => s.page_route.toLowerCase() === '/' || s.page_route.toLowerCase() === '/index.html');
     }
+
+    // 4. Base html extension match
     if (!matched) {
-      const base = normalizedRoute.replace(/\.html$/i, '');
-      matched = all.find(s => s.page_route.replace(/\.html$/i, '').toLowerCase() === base);
+      const base = normalizedRoute.split('?')[0].replace(/\.html$/i, '');
+      matched = all.find(s => s.page_route.split('?')[0].replace(/\.html$/i, '').toLowerCase() === base);
     }
 
     res.json(matched || {});
@@ -67,6 +119,8 @@ const path = require('path');
 
 function syncSeoToStaticHtml(entry) {
   if (!entry || !entry.page_route) return;
+  // Dynamic query-param routes (like /packages.html?slug=...) are handled dynamically by seo.js
+  if (entry.page_route.includes('?')) return;
   let filename = entry.page_route === '/' ? 'index.html' : entry.page_route.replace(/^\//, '');
   if (!filename.endsWith('.html')) filename += '.html';
 

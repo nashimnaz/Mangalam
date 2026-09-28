@@ -37,30 +37,10 @@ async function loadCollections() {
 }
 
 async function loadPosters() {
-  const section = document.getElementById('poster-section');
-  const list = document.getElementById('poster-list');
-  if (!section || !list) return;
-  const posters = await MT.apiGet('/api/posters');
-  if (!posters || !posters.length) {
-    section.style.display = 'none';
-    return;
-  }
-  list.innerHTML = posters.map(p => {
-    const img = MT.resolveImg(p.image) || `./admin/files/posters/${p.image}`;
-    const alt = p.alt_text || p.title || p.name || 'Special Travel Offer';
-    const tag = p.link ? `<a href="${p.link}" class="block w-full h-full">` : `<div class="block w-full h-full">`;
-    const endTag = p.link ? `</a>` : `</div>`;
-    return `<li class="splide__slide">
-      <div class="rounded-3xl overflow-hidden shadow-lg h-auto max-h-[380px] bg-gray-900">
-        ${tag}<img src="${img}" alt="${alt}" class="w-full h-full object-cover object-center max-h-[380px]">${endTag}
-      </div>
-    </li>`;
-  }).join('');
-  section.style.display = '';
-
-  if (window.Splide && document.getElementById('posterCarousel')) {
-    const cnt = posters.length;
-    if (cnt > 0) new Splide('#posterCarousel', { type: cnt > 1 ? 'loop' : 'slide', autoplay: cnt > 1, interval: 4000, speed: 800, arrows: cnt > 1, pagination: true, perPage: 1 }).mount();
+  if (typeof loadHomePosters === 'function') {
+    await loadHomePosters();
+  } else if (window.MT && typeof window.MT.loadHomePosters === 'function') {
+    await window.MT.loadHomePosters();
   }
 }
 
@@ -165,12 +145,6 @@ async function loadBlogs() {
 
 function initCarousels() {
   if (window.Splide) {
-    const posterEl = document.getElementById('posterCarousel');
-    if (posterEl) {
-      const cnt = posterEl.querySelectorAll('.splide__slide').length;
-      if (cnt > 0) new Splide('#posterCarousel', { type: cnt > 1 ? 'loop' : 'slide', autoplay: cnt > 1, interval: 4000, speed: 800, arrows: cnt > 1, pagination: true, perPage: 1 }).mount();
-    }
-
     const destEl = document.getElementById('destinationCarousel');
     if (destEl) {
       const cnt = destEl.querySelectorAll('.splide__slide').length;

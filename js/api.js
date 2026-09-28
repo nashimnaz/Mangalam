@@ -387,44 +387,73 @@ function injectMobileNavStyles() {
     /* Fixed Aspect Ratio & Anti-Zoom for Promotional Banners */
     #poster-section {
       overflow: hidden !important;
+      width: 100% !important;
     }
     #posterCarousel {
       overflow: hidden !important;
       border-radius: 20px !important;
+      position: relative !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 auto !important;
     }
     #posterCarousel .splide__track {
       overflow: hidden !important;
       border-radius: 20px !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    #posterCarousel .splide__list {
+      display: flex !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
     }
     #posterCarousel .splide__slide {
       position: relative !important;
       overflow: hidden !important;
       border-radius: 20px !important;
+      width: 100% !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
+      flex: 0 0 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
     }
     .poster-banner-wrapper {
       position: relative !important;
       width: 100% !important;
       height: 180px !important;
       overflow: hidden !important;
-      border-radius: 18px !important;
+      border-radius: 20px !important;
       background: #0f172a !important;
     }
     @media (min-width: 640px) {
+      #posterCarousel,
+      #posterCarousel .splide__track,
+      #posterCarousel .splide__slide,
+      .poster-banner-wrapper {
+        border-radius: 24px !important;
+      }
       .poster-banner-wrapper {
         height: 240px !important;
-        border-radius: 22px !important;
       }
     }
     @media (min-width: 768px) {
       .poster-banner-wrapper {
         height: 300px !important;
-        border-radius: 26px !important;
       }
     }
     @media (min-width: 1024px) {
+      #posterCarousel,
+      #posterCarousel .splide__track,
+      #posterCarousel .splide__slide,
+      .poster-banner-wrapper {
+        border-radius: 28px !important;
+      }
       .poster-banner-wrapper {
         height: 360px !important;
-        border-radius: 28px !important;
       }
     }
     .poster-banner-wrapper img {
@@ -437,6 +466,64 @@ function injectMobileNavStyles() {
       display: block !important;
       transform: none !important;
       transition: none !important;
+    }
+    #posterCarousel .splide__arrows {
+      pointer-events: none;
+    }
+    #posterCarousel .splide__arrow {
+      pointer-events: auto;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9) !important;
+      width: 2.75rem !important;
+      height: 2.75rem !important;
+      border-radius: 9999px !important;
+      opacity: 0.85 !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+      transition: all 0.25s ease !important;
+    }
+    #posterCarousel .splide__arrow:hover {
+      opacity: 1 !important;
+      background: #ffffff !important;
+      transform: scale(1.08) !important;
+    }
+    #posterCarousel .splide__arrow svg {
+      fill: #0f172a !important;
+    }
+    #posterCarousel .splide__arrow--prev {
+      left: 1rem !important;
+    }
+    #posterCarousel .splide__arrow--next {
+      right: 1rem !important;
+    }
+    #posterCarousel .splide__pagination {
+      position: absolute !important;
+      bottom: 1rem !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 10 !important;
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      gap: 6px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    #posterCarousel .splide__pagination__page {
+      width: 8px !important;
+      height: 8px !important;
+      border-radius: 9999px !important;
+      background: rgba(255, 255, 255, 0.5) !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      transition: all 0.3s ease !important;
+    }
+    #posterCarousel .splide__pagination__page.is-active {
+      width: 24px !important;
+      background: #ffffff !important;
+      border-radius: 9999px !important;
+      transform: none !important;
+      opacity: 1 !important;
     }
   `;
   document.head.appendChild(style);
@@ -593,46 +680,79 @@ async function loadHomePosters() {
       ];
     }
 
+    // Filter valid posters
+    posters = posters.filter(p => p && (p.image || p.title));
+    if (!posters.length) {
+      section.style.display = 'none';
+      return;
+    }
+
+    // Destroy existing instance cleanly
     if (_posterSplideInstance) {
       try { _posterSplideInstance.destroy(true); } catch (_) {}
       _posterSplideInstance = null;
     }
 
+    // Thorough DOM cleanup to purge any stale clones or leftover Splide DOM elements
+    carouselEl.querySelectorAll('.splide__slide--clone').forEach(el => el.remove());
+    carouselEl.querySelectorAll('.splide__arrows, .splide__pagination, .splide__progress, .splide__sr').forEach(el => el.remove());
+    carouselEl.classList.remove('is-initialized', 'is-active', 'is-overflow', 'splide--loop', 'splide--slide', 'splide--fade');
+
+    // Build fresh single-banner slides
     list.innerHTML = posters.map(p => {
-      const img = resolveImg(p.image);
-      const alt = p.alt_text || p.title || p.name || 'Special Travel Offer';
-      const tag = p.link ? `<a href="${p.link}" class="block w-full h-full">` : `<div class="block w-full h-full">`;
+      const rawImg = p.image || '';
+      const img = resolveImg(rawImg) || rawImg;
+      const alt = p.alt_text || p.title || p.name || 'Special Promotional Offer';
+      const tag = p.link ? `<a href="${p.link}" class="block w-full h-full cursor-pointer">` : `<div class="block w-full h-full">`;
       const endTag = p.link ? `</a>` : `</div>`;
       return `
         <li class="splide__slide">
-          <div class="poster-banner-wrapper rounded-2xl sm:rounded-3xl overflow-hidden shadow-md bg-slate-900 w-full h-[180px] sm:h-[240px] md:h-[300px] lg:h-[360px] relative">
-            ${tag}<img src="${img}" alt="${alt}" class="w-full h-full object-cover object-center block" loading="eager" onerror="this.src='https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1600&q=80'">${endTag}
+          <div class="poster-banner-wrapper rounded-2xl sm:rounded-3xl overflow-hidden shadow-md bg-slate-900 w-full relative">
+            ${tag}<img src="${img}" alt="${alt}" class="w-full h-full object-cover object-center block" loading="eager" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1600&q=80'">${endTag}
           </div>
         </li>
       `;
     }).join('');
 
-    section.style.display = '';
+    // Ensure section is visible so Splide accurately computes client dimensions
+    section.style.display = 'block';
 
-    if (window.Splide) {
+    // Wait a tick for DOM reflow so clientWidth is non-zero and stable
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    if (window.Splide && carouselEl.isConnected) {
       const cnt = posters.length;
-      if (cnt > 0) {
-        _posterSplideInstance = new Splide('#posterCarousel', {
-          type: cnt > 1 ? 'loop' : 'slide',
-          autoplay: cnt > 1,
-          interval: 4500,
-          speed: 600,
-          arrows: cnt > 1,
-          pagination: cnt > 1,
-          perPage: 1,
-          drag: cnt > 1,
-          pauseOnHover: true,
-          pauseOnFocus: false,
-          autoWidth: false,
-          autoHeight: false,
-          waitForTransition: true
-        });
-        _posterSplideInstance.mount();
+      _posterSplideInstance = new Splide('#posterCarousel', {
+        type: cnt > 1 ? 'loop' : 'slide',
+        perPage: 1,
+        perMove: 1,
+        gap: 0,
+        padding: 0,
+        focus: 0,
+        arrows: cnt > 1,
+        pagination: cnt > 1,
+        autoplay: cnt > 1,
+        interval: 5000,
+        speed: 700,
+        drag: cnt > 1,
+        pauseOnHover: true,
+        pauseOnFocus: false,
+        autoWidth: false,
+        autoHeight: false,
+        width: '100%',
+        trimSpace: true,
+        waitForTransition: true
+      });
+      _posterSplideInstance.mount();
+
+      // Ensure proper width sync on image loads or window resizes
+      if (!carouselEl._resizeBound) {
+        carouselEl._resizeBound = true;
+        window.addEventListener('resize', () => {
+          if (_posterSplideInstance) {
+            try { _posterSplideInstance.refresh(); } catch (_) {}
+          }
+        }, { passive: true });
       }
     }
   } catch (err) {
@@ -830,6 +950,7 @@ function initMenuDropdowns() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  injectMobileNavStyles();
   initMenuDropdowns();
   loadDynamicSeo();
   loadNotice();

@@ -381,7 +381,10 @@ window.saveDestination = async function(id) {
   const res = id ? await api('PUT', `/destinations/${id}`, body) : await api('POST', '/destinations', body);
   if (res?.error) { showToast(res.error, 'error'); return; }
   showToast(id ? 'Destination updated!' : 'Destination added!', 'success');
-  closeModal(); loadDestinations(); loadDashboard();
+  closeModal();
+  await loadDestinations();
+  await loadSeo();
+  loadDashboard();
 };
 
 window.deleteDestination = async function(id) {
@@ -389,7 +392,10 @@ window.deleteDestination = async function(id) {
   const res = await api('DELETE', `/destinations/${id}`);
   if (res?.error) { showToast(res.error, 'error'); return; }
   showToast('Destination deleted', 'success');
-  closeModal(); loadDestinations(); loadDashboard();
+  closeModal();
+  await loadDestinations();
+  await loadSeo();
+  loadDashboard();
 };
 
 document.getElementById('btn-add-destination')?.addEventListener('click', () => openDestinationForm());
@@ -1727,6 +1733,9 @@ let seoList = [];
 let currentSeoSearch = '';
 
 async function loadSeo() {
+  if (!destinations || !destinations.length) {
+    destinations = await api('GET', '/destinations') || [];
+  }
   seoList = await api('GET', '/seo') || [];
   renderSeoTable();
 }
@@ -1754,6 +1763,11 @@ function renderSeoTable() {
 
   tbody.innerHTML = filtered.map(s => {
     const seoId = s.id || s.seo_id;
+    const isDest = (s.page_route || '').includes('/packages.html?slug=') || (s.page_name || '').toLowerCase().startsWith('destination:');
+    const typeBadge = isDest
+      ? `<span class="badge blue" style="background:#eff6ff;color:#2563eb;font-size:10px;padding:2px 6px;margin-left:6px;font-weight:600"><i class="fas fa-map-marker-alt"></i> Destination</span>`
+      : `<span class="badge gray" style="font-size:10px;padding:2px 6px;margin-left:6px"><i class="fas fa-file-alt"></i> Page</span>`;
+
     const keywordsList = s.meta_keywords
       ? s.meta_keywords.split(/,|;/).map(k => k.trim()).filter(Boolean).slice(0, 4)
       : [];
@@ -1768,7 +1782,7 @@ function renderSeoTable() {
           <code style="background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:700;color:#0f172a">${s.page_route}</code>
         </td>
         <td>
-          <strong>${s.page_name || 'Page'}</strong>
+          <strong>${s.page_name || 'Page'}</strong> ${typeBadge}
         </td>
         <td style="max-width:320px">
           <div style="font-weight:700;font-size:13px;color:#1a0dab;line-height:1.3;margin-bottom:3px">${s.meta_title || 'No Meta Title'}</div>
@@ -1815,9 +1829,26 @@ const COMMON_PAGE_ROUTES = [
   { route: '/terms-and-conditions.html', name: 'Terms & Conditions' }
 ];
 
-function openSeoForm(s = null) {
+async function openSeoForm(s = null) {
+  // Ensure destinations list is populated and fresh from server
+  if (!destinations || !destinations.length) {
+    destinations = await api('GET', '/destinations') || [];
+  }
+
   const seoId = s ? (s.id || s.seo_id) : null;
-  const routesDatalist = COMMON_PAGE_ROUTES.map(r => `<option value="${r.route}">${r.name} (${r.route})</option>`).join('');
+
+  // Build standard page options
+  const staticOptions = COMMON_PAGE_ROUTES.map(r => `<option value="${r.route}">${r.name} (${r.route})</option>`).join('');
+
+  // Build dynamic destination routes
+  const destOptions = (destinations || []).map(d => {
+    const slug = d.slug_url || (d.destination_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const route = `/packages.html?slug=${slug}`;
+    const name = d.destination_name || 'Destination';
+    return `<option value="${route}">Destination: ${name} (${route})</option>`;
+  }).join('');
+
+  const routesDatalist = staticOptions + destOptions;
 
   openModal(s ? `Edit SEO: ${s.page_name}` : 'Add Page SEO Configuration', `
     <!-- Google Search Live Preview Card -->
@@ -1839,15 +1870,37 @@ function openSeoForm(s = null) {
 
     <div class="form-row">
       <div class="form-group">
-        <label>Page Route / URL Path *</label>
-        <input id="seo-route" list="seo-routes-list" value="${s?.page_route || '/'}" placeholder="e.g. / or /holiday-package.html" oninput="updateSeoPreview()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label style="margin:0">Page Route / URL Path *</label>
+          <select id="seo-route-picker" onchange="selectSeoQuickRoute(this.value)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid #cbd5e1;background:#f8fafc;color:#1e293b;max-width:240px;cursor:pointer">
+            <option value="">⚡ Select Destination or Page...</option>
+            <optgroup label="📍 All Destinations (${destinations.length})">
+              ${(destinations || []).map(d => {
+                const slug = d.slug_url || (d.destination_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const route = `/packages.html?slug=${slug}`;
+                const isSelected = (s?.page_route === route) ? 'selected' : '';
+                return `<option value="${route}" ${isSelected}>Destination: ${d.destination_name}</option>`;
+              }).join('')}
+            </optgroup>
+            <optgroup label="📄 Standard Website Pages">
+              ${COMMON_PAGE_ROUTES.map(r => {
+                const isSelected = (s?.page_route === r.route) ? 'selected' : '';
+                return `<option value="${r.route}" ${isSelected}>${r.name}</option>`;
+              }).join('')}
+            </optgroup>
+          </select>
+        </div>
+        <input id="seo-route" list="seo-routes-list" value="${s?.page_route || '/'}" placeholder="e.g. / or /packages.html?slug=dubai" oninput="handleSeoRouteChange(this.value)">
         <datalist id="seo-routes-list">
           ${routesDatalist}
         </datalist>
+        <span style="font-size:11px;color:#64748b;margin-top:4px;display:block">
+          Select from the quick dropdown above, choose from destinations in the list, or type any URL path.
+        </span>
       </div>
       <div class="form-group">
         <label>Page Name *</label>
-        <input id="seo-page-name" value="${s?.page_name || ''}" placeholder="e.g. Holiday Packages">
+        <input id="seo-page-name" value="${s?.page_name || ''}" placeholder="e.g. Destination: Dubai or Holiday Packages">
       </div>
     </div>
 
@@ -1856,7 +1909,7 @@ function openSeoForm(s = null) {
         <label style="margin:0">Google Meta Title *</label>
         <span id="char-count-title" style="font-size:11px;color:#6b7280">${(s?.meta_title||'').length}/60 chars</span>
       </div>
-      <input id="seo-title" value="${s?.meta_title || ''}" placeholder="e.g. Holiday Packages — Best International Tours | Mangalam" oninput="updateSeoPreview()">
+      <input id="seo-title" value="${s?.meta_title || ''}" placeholder="e.g. Dubai Tour Packages | Best Travel Deals — Mangalam" oninput="updateSeoPreview()">
     </div>
 
     <div class="form-group">
@@ -1869,14 +1922,14 @@ function openSeoForm(s = null) {
 
     <div class="form-group">
       <label>SEO Focus Keywords (Comma separated) *</label>
-      <textarea id="seo-keywords" rows="2" placeholder="e.g. travel agency kerala, dubai holiday packages, emi tours, visa assistance">${s?.meta_keywords || ''}</textarea>
+      <textarea id="seo-keywords" rows="2" placeholder="e.g. dubai tour packages, dubai holiday, dubai travel, best dubai deals">${s?.meta_keywords || ''}</textarea>
       <span style="font-size:11px;color:#9ca3af;margin-top:2px;display:block">Separate keywords with commas. Example: <code>dubai tours, cheap flights, visa processing</code></span>
     </div>
 
     <div class="form-row">
       <div class="form-group">
         <label>Canonical URL (Optional)</label>
-        <input id="seo-canonical" value="${s?.canonical_url || ''}" placeholder="e.g. https://mangalamtravel.com/holiday-package.html">
+        <input id="seo-canonical" value="${s?.canonical_url || ''}" placeholder="e.g. https://mangalamtravel.com/packages.html?slug=dubai">
       </div>
       <div class="form-group">
         <label>Robots Indexing</label>
@@ -1913,6 +1966,71 @@ function openSeoForm(s = null) {
   `);
 }
 
+window.selectSeoQuickRoute = function(val) {
+  if (!val) return;
+  const routeInput = document.getElementById('seo-route');
+  if (routeInput) {
+    routeInput.value = val;
+    handleSeoRouteChange(val);
+  }
+};
+
+window.handleSeoRouteChange = function(routeVal) {
+  updateSeoPreview();
+  const route = (routeVal || '').trim();
+  const pageNameInput = document.getElementById('seo-page-name');
+  const titleInput = document.getElementById('seo-title');
+  const descInput = document.getElementById('seo-desc');
+  const keywordsInput = document.getElementById('seo-keywords');
+  const canonicalInput = document.getElementById('seo-canonical');
+  const ogInput = document.getElementById('img-url-seo-og');
+  const previewOg = document.getElementById('preview-seo-og');
+
+  if (route.includes('/packages.html?slug=')) {
+    const slug = route.split('slug=')[1]?.split('&')[0];
+    const dest = (destinations || []).find(d => {
+      const dSlug = d.slug_url || (d.destination_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      return dSlug.toLowerCase() === (slug || '').toLowerCase();
+    });
+
+    if (dest) {
+      const destName = dest.destination_name || 'Destination';
+      if (pageNameInput && (!pageNameInput.value || pageNameInput.value === 'Custom Page' || pageNameInput.value.startsWith('Destination:'))) {
+        pageNameInput.value = `Destination: ${destName}`;
+      }
+      if (titleInput && (!titleInput.value || titleInput.value.includes('Holiday Packages — Best'))) {
+        titleInput.value = `${destName} Tour Packages | Best Travel Deals — Mangalam Travel & Tours`;
+      }
+      if (descInput && !descInput.value) {
+        const dDesc = dest.description ? dest.description.replace(/<[^>]*>?/gm, '').slice(0, 120) : '';
+        descInput.value = dDesc 
+          ? `Explore ${destName} holiday packages. ${dDesc} Book customized tours with Mangalam Travel.` 
+          : `Explore top-rated ${destName} tour packages, holiday itineraries, attractions, and flight bookings with Mangalam Travel & Tours.`;
+      }
+      if (keywordsInput && !keywordsInput.value) {
+        keywordsInput.value = `${destName.toLowerCase()} tour packages, ${destName.toLowerCase()} holidays, ${destName.toLowerCase()} trip, visit ${destName.toLowerCase()}, best ${destName.toLowerCase()} packages`;
+      }
+      if (canonicalInput && !canonicalInput.value) {
+        canonicalInput.value = `https://mangalamtravel.com/packages.html?slug=${slug}`;
+      }
+      if (ogInput && !ogInput.value && (dest.card_image || dest.inner_image)) {
+        const img = dest.card_image || dest.inner_image;
+        ogInput.value = img;
+        if (previewOg) {
+          previewOg.style.display = 'inline-block';
+          previewOg.innerHTML = `<img src="${img}" alt="OG Preview"><button type="button" class="btn-remove-img" onclick="removeImageUpload('seo-og')" title="Delete this image"><i class="fas fa-trash-alt"></i> Delete Image</button>`;
+        }
+      }
+      updateSeoPreview();
+    }
+  } else {
+    const page = COMMON_PAGE_ROUTES.find(p => p.route.toLowerCase() === route.toLowerCase());
+    if (page && pageNameInput && (!pageNameInput.value || pageNameInput.value === 'Custom Page')) {
+      pageNameInput.value = page.name;
+    }
+  }
+};
+
 window.updateSeoPreview = function() {
   const route = document.getElementById('seo-route')?.value || '/';
   const title = document.getElementById('seo-title')?.value || '';
@@ -1938,9 +2056,9 @@ window.updateSeoPreview = function() {
   }
 };
 
-window.editSeo = function(id) {
+window.editSeo = async function(id) {
   const s = seoList.find(x => String(x.id || x.seo_id) === String(id));
-  if (s) openSeoForm(s);
+  if (s) await openSeoForm(s);
 };
 
 window.saveSeo = async function(id) {

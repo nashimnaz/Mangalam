@@ -608,25 +608,6 @@
 
         const configs = [
             {
-                selector: '#posterCarousel',
-                options: {
-                    type: 'loop',
-                    perPage: 1,
-                    gap: '1.5rem',
-                    autoplay: true,
-                    interval: 3000,
-                    pauseOnHover: true,
-                    pauseOnFocus: true,
-                    arrows: true,
-                    pagination: true,
-                    breakpoints: {
-                        1024: { perPage: 1, gap: '1rem' },
-                        768: { perPage: 1, gap: '1rem' },
-                        640: { perPage: 1, gap: '0.75rem' }
-                    }
-                }
-            },
-            {
                 selector: '#emiCarousel',
                 options: {
                     type: 'loop',

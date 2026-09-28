@@ -32,12 +32,36 @@
     try {
       const pathname = window.location.pathname || '/';
       const cleanPath = pathname === '/' || pathname.endsWith('/index.html') ? '/' : pathname;
+      const search = window.location.search || '';
+      const params = new URLSearchParams(search);
+      const slug = params.get('slug');
       
       const apiOrigin = window.MT?.API_BASE?.replace(/\/api$/, '') || (window.location.port === '4000' ? '' : 'http://localhost:4000');
-      const res = await fetch(`${apiOrigin}/api/seo/match?route=${encodeURIComponent(cleanPath)}`);
-      if (!res.ok) return;
+      
+      let seo = null;
+      // 1. If page has slug parameter (e.g. destination packages.html?slug=dubai), try matching destination route first
+      if (slug) {
+        const destRoute = `${cleanPath}?slug=${encodeURIComponent(slug)}`;
+        try {
+          const res = await fetch(`${apiOrigin}/api/seo/match?route=${encodeURIComponent(destRoute)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.id) seo = data;
+          }
+        } catch (_) {}
+      }
 
-      const seo = await res.json();
+      // 2. Fall back to base pathname match
+      if (!seo) {
+        try {
+          const res = await fetch(`${apiOrigin}/api/seo/match?route=${encodeURIComponent(cleanPath)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.id) seo = data;
+          }
+        } catch (_) {}
+      }
+
       if (!seo || !seo.id) return;
 
       // 1. Page Title
